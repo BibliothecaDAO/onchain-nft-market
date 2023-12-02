@@ -1,38 +1,41 @@
 mod packing;
-
-use marketplace::packing::MarketOrder;
+mod tests;
+mod tokens;
 
 #[starknet::interface]
 trait IMarket<TContractState> {
-    fn create(ref self: TContractState, market_order: MarketOrder);
+    fn create(
+        ref self: TContractState, token_id: u32, collection_id: u16, price: u128, expiration: u64,
+    );
     fn accept(ref self: TContractState, order_id: felt252);
     fn cancel(ref self: TContractState, order_id: felt252);
-    fn edit(ref self: TContractState, order_id: felt252);
+    fn edit(ref self: TContractState, order_id: felt252, new_price: u128);
     fn whitelist_collection(
         ref self: TContractState, collection_address: core::starknet::ContractAddress
     );
-    fn update_dao_fee(ref self: TContractState, fee: felt252);
+    fn update_owner_fee(ref self: TContractState, fee: felt252);
+    fn update_owner_address(ref self: TContractState, new_address: core::starknet::ContractAddress);
+    fn view_order(ref self: TContractState, order_id: felt252) -> marketplace::packing::MarketOrder;
+    fn pause(ref self: TContractState);
+    fn unpause(ref self: TContractState);
 }
 
 #[starknet::contract]
 mod Market {
+    use core::debug::PrintTrait;
     use super::IMarket;
-
-    use marketplace::packing::MarketOrderTrait;
-    use marketplace::packing::{MarketOrder, ORDER_STATE};
+    use marketplace::packing::{MarketOrderTrait, MarketOrder, ORDER_STATE};
 
     use core::{
-        array::{SpanTrait, ArrayTrait}, integer::u256_try_as_non_zero, traits::{TryInto, Into},
-        clone::Clone, poseidon::poseidon_hash_span, option::OptionTrait, box::BoxTrait,
         starknet::{
-            get_caller_address, ContractAddress, ContractAddressIntoFelt252, contract_address_const,
-            get_block_timestamp, info::BlockInfo, get_contract_address
+            get_caller_address, ContractAddress, get_block_timestamp, info::BlockInfo,
+            get_contract_address
         },
     };
 
-    use openzeppelin::token::erc20::erc20::ERC20;
     use openzeppelin::token::erc20::interface::{
-        IERC20Camel, IERC20CamelDispatcher, IERC20CamelDispatcherTrait, IERC20CamelLibraryDispatcher
+        IERC20Dispatcher, IERC20DispatcherImpl, IERC20Camel, IERC20CamelDispatcher,
+        IERC20CamelDispatcherTrait, IERC20CamelLibraryDispatcher
     };
 
     use openzeppelin::token::erc721::interface::{
@@ -58,41 +61,100 @@ mod Market {
         order_count: felt252,
         collection_address: LegacyMap::<felt252, ContractAddress>, // collection addresses
         collection_count: felt252,
-        lords_address: ContractAddress,
-        dao_fee: felt252,
+        erc_address: ContractAddress,
+        owner_fee: felt252,
+        owner_address: ContractAddress,
+        paused: bool,
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, _lords_address: ContractAddress, _fee: felt252) {
-        self.lords_address.write(_lords_address);
-        self.dao_fee.write(_fee);
+    fn constructor(
+        ref self: ContractState,
+        _erc20_address: ContractAddress,
+        _fee: felt252,
+        _owner_address: ContractAddress
+    ) {
+        self.erc_address.write(_erc20_address);
+        self.owner_fee.write(_fee);
+        self.owner_address.write(_owner_address);
+        self.paused.write(false);
+    }
+
+    // Pauses the accept order function, in the event of a bug or exploit.
+    fn assert_not_paused(self: @ContractState) {
+        assert(!self.paused.read(), 'MARKET: paused');
+    }
+
+    // Checks if the caller is the DAO multisig.
+    fn assert_only_market_owner(self: @ContractState) {
+        assert(self.owner_address.read() == get_caller_address(), 'MARKET: caller not owner');
+    }
+
+    // Checks if the caller is the order owner.
+    fn assert_only_market_order_owner(self: @ContractState, order_id: felt252) {
+        assert(self.owner.read(order_id) == get_caller_address(), 'MARKET: caller not order owner');
+    }
+
+    fn erc20_dispatcher(self: @ContractState) -> IERC20Dispatcher {
+        IERC20Dispatcher { contract_address: self.erc_address.read(), }
+    }
+
+    fn erc721_dispatcher(self: @ContractState, collection_id: felt252) -> IERC721Dispatcher {
+        IERC721Dispatcher { contract_address: self.collection_address.read(collection_id), }
     }
 
     #[external(v0)]
     impl Market of IMarket<ContractState> {
+        // =========================
+        // === MARKET FUNCTIONS ====
+        // =========================
+
         /// Creates a new market order.
-        /// This function checks if the collection is whitelisted, approves the contract to transfer the NFT,
+        /// This function checks if the collection is whitelisted, checks market is approved and then
         /// increments the order count, sets the market order in state, and emits an OrderEvent.
         /// # Arguments
         /// * `market_order` - The market order to be created.
-        fn create(ref self: ContractState, market_order: MarketOrder) {
-            // check whitelist collection
-            let collection_address = self
-                .collection_address
-                .read(market_order.collection_id.into());
+        fn create(
+            ref self: ContractState,
+            token_id: u32,
+            collection_id: u16,
+            price: u128,
+            expiration: u64,
+        ) {
+            // create market order
+            let market_order = MarketOrder {
+                token_id: token_id,
+                collection_id: collection_id,
+                price: price,
+                expiration: expiration,
+                active: ORDER_STATE::ACTIVE,
+            };
 
             // assert collection is whitelisted
-            assert(collection_address.into() != 0, 'MARKET: Not whitelisted');
+            // @dev: collections need to be whitelisted
+            assert(
+                self.collection_address.read(market_order.collection_id.into()).into() != 0,
+                'MARKET: Not whitelisted'
+            );
 
-            // approve contract to transfer NFT
-            IERC721Dispatcher { contract_address: collection_address }
-                .approve(get_contract_address(), market_order.token_id.into());
+            // assert market is approved
+            // @dev: a tx should be sent before calling this authorizing the contract to transfer the NFT
+            assert(
+                erc721_dispatcher(@self, market_order.collection_id.into())
+                    .get_approved(market_order.token_id.into()) == get_contract_address(),
+                'MARKET: Not approved'
+            );
+
+            // assert expiration is in the future and at least 1 day
+            assert(
+                market_order.expiration > get_block_timestamp() + 86400, 'MARKET: Not in future'
+            );
 
             // increment
             let mut count = self.order_count.read();
             count += 1;
 
-            // set bounty // set count // set owner of bounty
+            // set market order // set count // set owner of bounty
             self.market_order.write(count, market_order);
             self.order_count.write(count);
             self.owner.write(count, get_caller_address());
@@ -100,43 +162,50 @@ mod Market {
             // emit event
             self.emit(OrderEvent { market_order, timestamp: get_block_timestamp() });
         }
+
         /// Accepts a market order.
         /// Retrieves the order, transfers the required tokens and NFTs, sets the order to inactive, and emits an OrderEvent.
         /// # Arguments
         /// * `order_id` - The identifier of the order to accept.
         fn accept(ref self: ContractState, order_id: felt252) {
+            // assert not paused
+            assert_not_paused(@self);
+
             // get order
             let mut market_order = self.market_order.read(order_id);
 
             // get owner
             let order_owner = self.owner.read(order_id);
 
-            // get collection
-            let collection_address = self
-                .collection_address
-                .read(market_order.collection_id.into());
+            // we assert here - as the buyer can revoke approval at any time
+            // asserting here means the trade will fail if the buyer has revoked approval
+            // the trade should be removed from the indexer if revert happens
+            assert(
+                erc721_dispatcher(@self, market_order.collection_id.into())
+                    .get_approved(market_order.token_id.into()) == get_contract_address(),
+                'MARKET: Not approved'
+            );
+
+            // assert expiration    
+            assert(market_order.expiration > get_block_timestamp(), 'MARKET: Expired');
 
             // assert active
             market_order.is_active();
 
             // calculate cost minus fee
             let cost = market_order.price.into();
-            let fee: u256 = cost * self.dao_fee.read().into() / 10000;
+            let fee: u256 = cost * self.owner_fee.read().into() / 10000;
 
-            // Lords token dispatcher
-            let lords_dispatcher = IERC20CamelDispatcher {
-                contract_address: self.lords_address.read(),
-            };
+            // LORDS: transfer fee to owner
+            erc20_dispatcher(@self)
+                .transfer_from(get_caller_address(), self.owner_address.read(), fee.into());
 
-            // transfer fee to DAO
-            lords_dispatcher.transferFrom(get_caller_address(), get_contract_address(), fee.into());
+            // LORDS: transfer cost minus fee from buyer to seller
+            erc20_dispatcher(@self)
+                .transfer_from(get_caller_address(), order_owner, (cost.into() - fee).into());
 
-            // transfer cost minus fee from buyer to seller
-            lords_dispatcher
-                .transferFrom(get_caller_address(), order_owner, (cost.into() - fee).into());
-
-            // transfer NFT from seller to buyer
-            IERC721Dispatcher { contract_address: collection_address }
+            // NFT: from seller to buyer
+            erc721_dispatcher(@self, market_order.collection_id.into())
                 .transfer_from(order_owner, get_caller_address(), market_order.token_id.into());
 
             // set inactive
@@ -146,6 +215,7 @@ mod Market {
             // emit event
             self.emit(OrderEvent { market_order, timestamp: get_block_timestamp() });
         }
+
         /// Cancels a market order.
         /// Checks if the order is active and if the caller is the order owner, revokes approval, sets the order to inactive, and emits an OrderEvent.
         /// # Arguments
@@ -158,15 +228,14 @@ mod Market {
             market_order.is_active();
 
             // assert owner
-            assert(
-                self.owner.read(order_id) == get_caller_address(), 'MARKET: caller not order owner'
-            );
+            assert_only_market_order_owner(@self, order_id);
 
-            // revoke approval
-            IERC721Dispatcher {
-                contract_address: self.collection_address.read(market_order.collection_id.into())
-            }
-                .set_approval_for_all(get_contract_address(), false);
+            // we assert here that auth has been revoked for safety
+            assert(
+                erc721_dispatcher(@self, market_order.collection_id.into())
+                    .get_approved(market_order.token_id.into()) != get_contract_address(),
+                'MARKET: Still approved'
+            );
 
             // set inactive
             market_order.set_inactive();
@@ -175,11 +244,12 @@ mod Market {
             // emit event
             self.emit(OrderEvent { market_order, timestamp: get_block_timestamp() });
         }
+
         /// Edits an existing market order.
         /// Checks if the order is active and if the caller is the order owner, then updates the order in state and emits an OrderEvent.
         /// # Arguments
         /// * `order_id` - The identifier of the order to edit.
-        fn edit(ref self: ContractState, order_id: felt252) {
+        fn edit(ref self: ContractState, order_id: felt252, new_price: u128) {
             // get order
             let mut market_order = self.market_order.read(order_id);
 
@@ -187,17 +257,37 @@ mod Market {
             market_order.is_active();
 
             // assert owner
-            assert(
-                self.owner.read(order_id) == get_caller_address(), 'MARKET: caller not order owner'
-            );
+            assert_only_market_order_owner(@self, order_id);
 
-            // write
+            // update price
+            market_order.price = new_price;
             self.market_order.write(order_id, market_order);
 
             // emit event
-            self.emit(OrderEvent { market_order, timestamp: get_block_timestamp() });
+            self.emit(OrderEvent { market_order: market_order, timestamp: get_block_timestamp() });
         }
+
+        // =========================
+        // ====== VIEW FUNCTIONS ===
+        // =========================
+
+        /// Returns a market order.
+        /// # Arguments
+        /// * `order_id` - The identifier of the order to view.
+        fn view_order(ref self: ContractState, order_id: felt252) -> MarketOrder {
+            self.market_order.read(order_id)
+        }
+
+        // =========================
+        // ====== ADMIN FUNCTIONS ==
+        // =========================
+
+        // Whitelists a collection. Can only be called by the DAO multisig.
+        /// # Arguments
+        /// * `collection_address` - The address of the collection to whitelist.
         fn whitelist_collection(ref self: ContractState, collection_address: ContractAddress) {
+            assert_only_market_owner(@self);
+
             // increment
             let mut count = self.collection_count.read();
             count += 1;
@@ -206,8 +296,33 @@ mod Market {
             self.collection_address.write(count, collection_address);
             self.collection_count.write(count);
         }
-        fn update_dao_fee(ref self: ContractState, fee: felt252) {
-            self.dao_fee.write(fee);
+
+        /// Updates the DAO fee. Can only be called by the DAO multisig.
+        /// # Arguments
+        /// * `fee` - The new fee.
+        fn update_owner_fee(ref self: ContractState, fee: felt252) {
+            assert_only_market_owner(@self);
+            self.owner_fee.write(fee);
+        }
+
+        /// Updates the DAO address. Can only be called by the DAO multisig.
+        /// # Arguments
+        /// * `new_address` - The new DAO address.
+        fn update_owner_address(ref self: ContractState, new_address: ContractAddress) {
+            assert_only_market_owner(@self);
+            self.owner_address.write(new_address);
+        }
+
+        /// Pauses the contract. Can only be called by the DAO multisig
+        fn pause(ref self: ContractState) {
+            assert_only_market_owner(@self);
+            self.paused.write(true);
+        }
+
+        /// Unpauses the contract. Can only be called by the DAO multisig
+        fn unpause(ref self: ContractState) {
+            assert_only_market_owner(@self);
+            self.paused.write(false);
         }
     }
 }

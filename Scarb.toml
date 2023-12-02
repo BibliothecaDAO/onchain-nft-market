@@ -3,5 +3,7 @@ name = "marketplace"
 version = "0.1.0"
 
 [dependencies]
-starknet = "2.3.0"
-openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.8.0-beta.0" }
+starknet = "2.3.1"
+openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.8.0" }
+
+[[target.starknet-contract]]
