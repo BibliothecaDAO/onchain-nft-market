@@ -105,7 +105,7 @@ mod test {
         set_contract_address(RECIPIENT());
 
         // approve market to transfer
-        nft.approve(market.contract_address, TOKEN_ID);
+        nft.set_approval_for_all(market.contract_address, true);
 
         market
             .create(
@@ -204,22 +204,6 @@ mod test {
         // revoke approval
         nft.approve(0.try_into().unwrap(), TOKEN_ID);
 
-        market.cancel(ORDER_ID);
-
-        let order = market.view_order(ORDER_ID);
-
-        assert(order.active == ORDER_STATE::INACTIVE, 'Not active');
-    }
-
-    #[test]
-    #[should_panic(expected: ('MARKET: Still approved', 'ENTRYPOINT_FAILED'))]
-    #[available_gas(200000000)]
-    fn test_cancel_fail() {
-        let (market, lords, nft) = create_with_approval();
-
-        set_contract_address(RECIPIENT());
-
-        // called without revoke approval
         market.cancel(ORDER_ID);
 
         let order = market.view_order(ORDER_ID);

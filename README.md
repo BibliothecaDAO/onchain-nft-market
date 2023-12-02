@@ -6,7 +6,7 @@ Simple Starknet onchain Market
 
 ```bash
 # Set the StarkNet network to mainnet
-export STARKNET_NETWORK="mainnet"
+export STARKNET_NETWORK="goerli"
 
 # Starkli commands
 starkli
@@ -18,11 +18,11 @@ export STARKNET_RPC="https://starknet-mainnet.g.alchemy.com/v2/G9wJH34O_F038b_k3
 export STARKNET_RPC="https://starknet-goerli.g.alchemy.com/v2/-RHvatMphky_TLyhARL-4imNkCmPqQgS"
 
 # Set the keystore path
-export STARKNET_KEYSTORE=/Users/os/Documents/code/biblio/onchain-nft-market/keys
+export STARKNET_KEYSTORE=<PATH>
 
 # Declare and deploy contracts
 starkli declare /Users/os/Documents/code/biblio/onchain-nft-market/target/dev/marketplace_Market.contract_class.json --account ./account
-starkli deploy 0x04624b17451699a93ea17a444ee8503a6d9317c1f8eb7fc4d27269d1a46b1cc3 $LORDS_ADDRESS 300 $DAO_ADDRESS --account ./account
+starkli deploy 0x07300eee02cd54df6de743fa74fe1d61f562c4f4a1554aeeb307d0e2141a6b76 $LORDS_ADDRESS 300 $DAO_ADDRESS --account ./account
 ```
 
 ### Configuration for Goerli and Mainnet
@@ -46,8 +46,8 @@ export DAO_ADDRESS=0x65ce28a1d99a085a0d5b4d07ceb9b80a9ef0e64a525bf526cff678c619f
 
 ```bash
 # Add whitelist
-starkli invoke 0x0488317a379f653c7b98d2e0b8e77723cb016a93295c55ce95126ff024f66d78 whitelist_collection $BEASTS_ADDRESS --account ./account
-starkli invoke 0x00a342cdd1abf7fc694c582226d88b56c503d430a5f301ddcbb3cb589d99dabe whitelist_collection $BEASTS_ADDRESS --account ./account-mainnet
+starkli invoke 0x0136c83ac9a4938fa5205ac08a52937f5d19e02fe1fe5400d664f47c2b2297bb whitelist_collection $BEASTS_ADDRESS --account ./account
+starkli invoke 0x0136c83ac9a4938fa5205ac08a52937f5d19e02fe1fe5400d664f47c2b2297bb whitelist_collection $BEASTS_ADDRESS --account ./account-mainnet
 
 # Mainnet hash
 starkli deploy 0x04624b17451699a93ea17a444ee8503a6d9317c1f8eb7fc4d27269d1a46b1cc3 $LORDS_ADDRESS 300 $DAO_ADDRESS --account ./account-mainnet

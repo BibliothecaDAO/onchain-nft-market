@@ -141,13 +141,20 @@ mod Market {
             // @dev: a tx should be sent before calling this authorizing the contract to transfer the NFT
             assert(
                 erc721_dispatcher(@self, market_order.collection_id.into())
-                    .get_approved(market_order.token_id.into()) == get_contract_address(),
+                    .is_approved_for_all(get_caller_address(), get_contract_address()),
                 'MARKET: Not approved'
             );
 
             // assert expiration is in the future and at least 1 day
             assert(
                 market_order.expiration > get_block_timestamp() + 86400, 'MARKET: Not in future'
+            );
+
+            // assert owner of NFT is caller
+            assert(
+                erc721_dispatcher(@self, market_order.collection_id.into())
+                    .owner_of(market_order.token_id.into()) == get_caller_address(),
+                'MARKET: Not owner'
             );
 
             // increment
@@ -182,7 +189,7 @@ mod Market {
             // the trade should be removed from the indexer if revert happens
             assert(
                 erc721_dispatcher(@self, market_order.collection_id.into())
-                    .get_approved(market_order.token_id.into()) == get_contract_address(),
+                    .is_approved_for_all(order_owner, get_contract_address()),
                 'MARKET: Not approved'
             );
 
@@ -229,13 +236,6 @@ mod Market {
 
             // assert owner
             assert_only_market_order_owner(@self, order_id);
-
-            // we assert here that auth has been revoked for safety
-            assert(
-                erc721_dispatcher(@self, market_order.collection_id.into())
-                    .get_approved(market_order.token_id.into()) != get_contract_address(),
-                'MARKET: Still approved'
-            );
 
             // set inactive
             market_order.set_inactive();
