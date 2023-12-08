@@ -15,8 +15,7 @@ mod MyNFT {
     #[abi(embed_v0)]
     impl ERC721CamelOnly = ERC721Component::ERC721CamelOnlyImpl<ContractState>;
     #[abi(embed_v0)]
-    impl ERC721MetadataCamelOnly =
-        ERC721Component::ERC721MetadataCamelOnlyImpl<ContractState>;
+    impl ERC721MetadataCamelOnly = ERC721Component::ERC721MetadataCamelOnlyImpl<ContractState>;
     impl ERC721InternalImpl = ERC721Component::InternalImpl<ContractState>;
 
     // SRC5
@@ -53,9 +52,7 @@ mod MyNFT {
 
     #[generate_trait]
     impl InternalImpl of InternalTrait {
-        fn _mint_with_uri(
-            ref self: ContractState, recipient: ContractAddress, token_id: u256, token_uri: felt252
-        ) {
+        fn _mint_with_uri(ref self: ContractState, recipient: ContractAddress, token_id: u256, token_uri: felt252) {
             // Initialize the ERC721 storage
             self.erc721._mint(recipient, token_id);
             // Mint the NFT to recipient and set the token's URI

@@ -1,62 +1,53 @@
 #[derive(Drop, Copy, Serde)]
 struct MarketOrder {
+    owner: starknet::ContractAddress,
     token_id: u32,
     collection_id: u16,
     price: u128,
     expiration: u64, // Timestamp
-    active: u8, // Is the bounty active
+    active: bool, // Is the bounty active
 }
 
-mod ORDER_STATE {
-    const ACTIVE: u8 = 1;
-    const INACTIVE: u8 = 0;
-}
-
-#[generate_trait]
-impl MarketOrderImpl of MarketOrderTrait {
-    fn is_active(self: MarketOrder) {
-        assert(self.active == ORDER_STATE::ACTIVE, 'Order is not active');
-    }
-    fn set_inactive(ref self: MarketOrder) {
-        self.active = ORDER_STATE::INACTIVE
+impl BoolIntoU256 of Into<bool, u256> {
+    fn into(self: bool) -> u256 {
+        if self {
+            1
+        } else {
+            0
+        }
     }
 }
 
-impl PackedMarketOrder of starknet::StorePacking<MarketOrder, felt252> {
-    fn pack(value: MarketOrder) -> felt252 {
-        (value.token_id.into()
-            + value.collection_id.into() * pow::TWO_POW_32
-            + value.price.into() * pow::TWO_POW_48
-            + value.expiration.into() * pow::TWO_POW_176
-            + value.active.into() * pow::TWO_POW_240)
-            .try_into()
-            .unwrap()
+impl PackedMarketOrder of starknet::StorePacking<MarketOrder, (felt252, felt252)> {
+    fn pack(value: MarketOrder) -> (felt252, felt252) {
+        (
+            value.owner.into(),
+            (value.token_id.into()
+                + value.collection_id.into() * pow::TWO_POW_32
+                + value.price.into() * pow::TWO_POW_48
+                + value.expiration.into() * pow::TWO_POW_176
+                + value.active.into() * pow::TWO_POW_240)
+                .try_into()
+                .unwrap()
+        )
     }
 
-    fn unpack(value: felt252) -> MarketOrder {
-        let packed = value.into();
-        let (packed, token_id) = integer::U256DivRem::div_rem(
-            packed, pow::TWO_POW_32.try_into().unwrap()
-        );
-        let (packed, collection_id) = integer::U256DivRem::div_rem(
-            packed, pow::TWO_POW_16.try_into().unwrap()
-        );
-        let (packed, price) = integer::U256DivRem::div_rem(
-            packed, pow::TWO_POW_128.try_into().unwrap()
-        );
-        let (packed, expiration) = integer::U256DivRem::div_rem(
-            packed, pow::TWO_POW_64.try_into().unwrap()
-        );
-        let (packed, active) = integer::U256DivRem::div_rem(
-            packed, pow::TWO_POW_8.try_into().unwrap()
-        );
+    fn unpack(value: (felt252, felt252)) -> MarketOrder {
+        let (owner, packed) = value;
+        let packed = packed.into();
+        let (packed, token_id) = integer::U256DivRem::div_rem(packed, pow::TWO_POW_32.try_into().unwrap());
+        let (packed, collection_id) = integer::U256DivRem::div_rem(packed, pow::TWO_POW_16.try_into().unwrap());
+        let (packed, price) = integer::U256DivRem::div_rem(packed, pow::TWO_POW_128.try_into().unwrap());
+        let (active, expiration) = integer::U256DivRem::div_rem(packed, pow::TWO_POW_64.try_into().unwrap());
+        let active: u8 = active.try_into().unwrap();
 
         MarketOrder {
+            owner: owner.try_into().unwrap(),
             token_id: token_id.try_into().unwrap(),
             collection_id: collection_id.try_into().unwrap(),
             price: price.try_into().unwrap(),
             expiration: expiration.try_into().unwrap(),
-            active: active.try_into().unwrap(),
+            active: active == 1
         }
     }
 }
@@ -69,15 +60,17 @@ mod tests {
     #[test]
     fn test_pack_unpack() {
         let order = MarketOrder {
+            owner: starknet::contract_address_const::<'hello'>(),
             token_id: 60000000,
             collection_id: 100,
             price: 300000000000000000000,
             expiration: 1701263226,
-            active: 1,
+            active: true,
         };
 
         let packed = PackedMarketOrder::pack(order);
         let unpacked = PackedMarketOrder::unpack(packed);
+        assert(unpacked.owner == order.owner, 'owner');
         assert(unpacked.token_id == order.token_id, 'token_id');
         assert(unpacked.collection_id == order.collection_id, 'collection_id');
         assert(unpacked.price == order.price, 'price');
@@ -319,48 +312,26 @@ mod pow {
     const TWO_POW_229: u256 = 0x2000000000000000000000000000000000000000000000000000000000; // 2^229
     const TWO_POW_230: u256 = 0x4000000000000000000000000000000000000000000000000000000000; // 2^230
     const TWO_POW_231: u256 = 0x8000000000000000000000000000000000000000000000000000000000; // 2^231
-    const TWO_POW_232: u256 =
-        0x10000000000000000000000000000000000000000000000000000000000; // 2^232
-    const TWO_POW_233: u256 =
-        0x20000000000000000000000000000000000000000000000000000000000; // 2^233
-    const TWO_POW_234: u256 =
-        0x40000000000000000000000000000000000000000000000000000000000; // 2^234
-    const TWO_POW_235: u256 =
-        0x80000000000000000000000000000000000000000000000000000000000; // 2^235
-    const TWO_POW_236: u256 =
-        0x100000000000000000000000000000000000000000000000000000000000; // 2^236
-    const TWO_POW_237: u256 =
-        0x200000000000000000000000000000000000000000000000000000000000; // 2^237
-    const TWO_POW_238: u256 =
-        0x400000000000000000000000000000000000000000000000000000000000; // 2^238
-    const TWO_POW_239: u256 =
-        0x800000000000000000000000000000000000000000000000000000000000; // 2^239
-    const TWO_POW_240: u256 =
-        0x1000000000000000000000000000000000000000000000000000000000000; // 2^240
-    const TWO_POW_241: u256 =
-        0x2000000000000000000000000000000000000000000000000000000000000; // 2^241
-    const TWO_POW_242: u256 =
-        0x4000000000000000000000000000000000000000000000000000000000000; // 2^242
-    const TWO_POW_243: u256 =
-        0x8000000000000000000000000000000000000000000000000000000000000; // 2^243
-    const TWO_POW_244: u256 =
-        0x10000000000000000000000000000000000000000000000000000000000000; // 2^244
-    const TWO_POW_245: u256 =
-        0x20000000000000000000000000000000000000000000000000000000000000; // 2^245
-    const TWO_POW_246: u256 =
-        0x40000000000000000000000000000000000000000000000000000000000000; // 2^246
-    const TWO_POW_247: u256 =
-        0x80000000000000000000000000000000000000000000000000000000000000; // 2^247
-    const TWO_POW_248: u256 =
-        0x100000000000000000000000000000000000000000000000000000000000000; // 2^248
-    const TWO_POW_249: u256 =
-        0x200000000000000000000000000000000000000000000000000000000000000; // 2^249
-    const TWO_POW_250: u256 =
-        0x400000000000000000000000000000000000000000000000000000000000000; // 2^250
-    const TWO_POW_251: u256 =
-        0x800000000000000000000000000000000000000000000000000000000000000; // 2^251
-    const TWO_POW_252: u256 =
-        0x1000000000000000000000000000000000000000000000000000000000000000; // 2^252
-    const TWO_POW_256: u256 =
-        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF; // 2^256
+    const TWO_POW_232: u256 = 0x10000000000000000000000000000000000000000000000000000000000; // 2^232
+    const TWO_POW_233: u256 = 0x20000000000000000000000000000000000000000000000000000000000; // 2^233
+    const TWO_POW_234: u256 = 0x40000000000000000000000000000000000000000000000000000000000; // 2^234
+    const TWO_POW_235: u256 = 0x80000000000000000000000000000000000000000000000000000000000; // 2^235
+    const TWO_POW_236: u256 = 0x100000000000000000000000000000000000000000000000000000000000; // 2^236
+    const TWO_POW_237: u256 = 0x200000000000000000000000000000000000000000000000000000000000; // 2^237
+    const TWO_POW_238: u256 = 0x400000000000000000000000000000000000000000000000000000000000; // 2^238
+    const TWO_POW_239: u256 = 0x800000000000000000000000000000000000000000000000000000000000; // 2^239
+    const TWO_POW_240: u256 = 0x1000000000000000000000000000000000000000000000000000000000000; // 2^240
+    const TWO_POW_241: u256 = 0x2000000000000000000000000000000000000000000000000000000000000; // 2^241
+    const TWO_POW_242: u256 = 0x4000000000000000000000000000000000000000000000000000000000000; // 2^242
+    const TWO_POW_243: u256 = 0x8000000000000000000000000000000000000000000000000000000000000; // 2^243
+    const TWO_POW_244: u256 = 0x10000000000000000000000000000000000000000000000000000000000000; // 2^244
+    const TWO_POW_245: u256 = 0x20000000000000000000000000000000000000000000000000000000000000; // 2^245
+    const TWO_POW_246: u256 = 0x40000000000000000000000000000000000000000000000000000000000000; // 2^246
+    const TWO_POW_247: u256 = 0x80000000000000000000000000000000000000000000000000000000000000; // 2^247
+    const TWO_POW_248: u256 = 0x100000000000000000000000000000000000000000000000000000000000000; // 2^248
+    const TWO_POW_249: u256 = 0x200000000000000000000000000000000000000000000000000000000000000; // 2^249
+    const TWO_POW_250: u256 = 0x400000000000000000000000000000000000000000000000000000000000000; // 2^250
+    const TWO_POW_251: u256 = 0x800000000000000000000000000000000000000000000000000000000000000; // 2^251
+    const TWO_POW_252: u256 = 0x1000000000000000000000000000000000000000000000000000000000000000; // 2^252
+    const TWO_POW_256: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF; // 2^256
 }
