@@ -1,49 +1,44 @@
 #[cfg(test)]
 mod test {
     use core::debug::PrintTrait;
-    use debug::print;
-    // use marketplace::tokens::erc721::ERC721Component;
-    use marketplace::IMarketDispatcherTrait;
-    use marketplace::{IMarket, IMarketDispatcher, Market};
-    use marketplace::packing::MarketOrderTrait;
-    use marketplace::packing::{MarketOrder, ORDER_STATE};
 
     use core::{
-        array::{SpanTrait, ArrayTrait}, integer::u256_try_as_non_zero, traits::{TryInto, Into},
-        clone::Clone, poseidon::poseidon_hash_span, option::OptionTrait, box::BoxTrait,
+        array::{SpanTrait, ArrayTrait}, integer::u256_try_as_non_zero, traits::{TryInto, Into}, clone::Clone,
+        poseidon::poseidon_hash_span, option::OptionTrait, box::BoxTrait,
         starknet::{
             get_caller_address, ContractAddress, ContractAddressIntoFelt252, contract_address_const,
             get_block_timestamp, info::BlockInfo, get_contract_address
         },
     };
-    use starknet::{syscalls::deploy_syscall, testing};
-    use openzeppelin::token::erc20::interface::{
-        IERC20Camel, IERC20CamelDispatcher, IERC20CamelDispatcherTrait, IERC20CamelLibraryDispatcher
-    };
 
-    use openzeppelin::token::erc721::interface::{
-        IERC721Dispatcher, IERC721DispatcherTrait, IERC721LibraryDispatcher
-    };
-    use openzeppelin::utils::serde::SerializedAppend;
-    use openzeppelin::tests::utils;
+    use marketplace::IMarketDispatcherTrait;
+    use marketplace::packing::MarketOrder;
 
-    const MAX_LORDS: u256 = 10000000000000000000000000000000000000000;
-    const APPROVE: u256 = 10000000000000000000000000000000000000000;
+    use marketplace::tokens::erc721::MyNFT;
+    use marketplace::{IMarket, IMarketDispatcher, Market};
+    use openzeppelin::tests::mocks::erc20_mocks::{DualCaseERC20};
 
     use openzeppelin::tests::utils::constants::{
         DATA, ZERO, OWNER, RECIPIENT, SPENDER, OPERATOR, OTHER, NAME, SYMBOL, URI, PUBKEY
     };
+    use openzeppelin::tests::utils;
+    use openzeppelin::token::erc20::interface::{
+        IERC20Camel, IERC20CamelDispatcher, IERC20CamelDispatcherTrait, IERC20CamelLibraryDispatcher
+    };
+
+    use openzeppelin::token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
+
+    use openzeppelin::token::erc721::interface::{IERC721Dispatcher, IERC721DispatcherTrait, IERC721LibraryDispatcher};
+    use openzeppelin::utils::serde::SerializedAppend;
+    use starknet::syscalls::deploy_syscall;
+    use starknet::testing::{set_caller_address, set_contract_address};
+
+    const MAX_LORDS: u256 = 10000000000000000000000000000000000000000;
+    const APPROVE: u256 = 10000000000000000000000000000000000000000;
 
     fn DAO() -> ContractAddress {
         contract_address_const::<1>()
     }
-    use starknet::testing::set_caller_address;
-    use starknet::testing::set_contract_address;
-
-    use openzeppelin::token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use openzeppelin::tests::mocks::erc20_mocks::{DualCaseERC20};
-
-    use marketplace::tokens::erc721::MyNFT;
 
     const TOKEN_ID: u256 = 1;
     const ORDER_ID: felt252 = 1;
@@ -136,13 +131,7 @@ mod test {
 
         set_contract_address(RECIPIENT());
 
-        market
-            .create(
-                token_id: TOKEN_ID.try_into().unwrap(),
-                collection_id: 1,
-                price: PRICE,
-                expiration: 100,
-            );
+        market.create(token_id: TOKEN_ID.try_into().unwrap(), collection_id: 1, price: PRICE, expiration: 100,);
     }
     // ==================== ACCEPT ====================
 
@@ -174,7 +163,7 @@ mod test {
 
         let order = market.view_order(ORDER_ID);
 
-        assert(order.active == ORDER_STATE::INACTIVE, 'Not active');
+        assert(!order.active, 'Not active');
     }
 
     // ==================== EDIT ====================
@@ -208,7 +197,7 @@ mod test {
 
         let order = market.view_order(ORDER_ID);
 
-        assert(order.active == ORDER_STATE::INACTIVE, 'Not active');
+        assert(!order.active, 'Not active');
     }
 
     #[test]
@@ -218,7 +207,7 @@ mod test {
 
         set_contract_address(DAO());
 
-        market.update_owner_fee(400);
+        market.update_market_fee(400);
     }
 
     #[test]
@@ -229,6 +218,6 @@ mod test {
 
         set_contract_address(RECIPIENT());
 
-        market.update_owner_fee(400);
+        market.update_market_fee(400);
     }
 }
