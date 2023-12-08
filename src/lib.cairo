@@ -39,7 +39,7 @@ mod Market {
     #[derive(Drop, starknet::Event)]
     struct OrderEvent {
         market_order: MarketOrder,
-        timestamp: u64,
+        order_id: felt252,
     }
 
     #[storage]
@@ -125,7 +125,7 @@ mod Market {
             self.order_count.write(count);
 
             // emit event
-            self.emit(OrderEvent { market_order, timestamp: get_block_timestamp() });
+            self.emit(OrderEvent { market_order, order_id: count });
         }
 
         /// Accepts a market order.
@@ -168,7 +168,7 @@ mod Market {
             self.market_order.write(order_id, market_order);
 
             // emit event
-            self.emit(OrderEvent { market_order, timestamp: get_block_timestamp() });
+            self.emit(OrderEvent { market_order, order_id });
         }
 
         /// Cancels a market order.
@@ -190,7 +190,7 @@ mod Market {
             self.market_order.write(order_id, market_order);
 
             // emit event
-            self.emit(OrderEvent { market_order, timestamp: get_block_timestamp() });
+            self.emit(OrderEvent { market_order, order_id});
         }
 
         /// Edits an existing market order.
@@ -212,7 +212,8 @@ mod Market {
             self.market_order.write(order_id, market_order);
 
             // emit event
-            self.emit(OrderEvent { market_order, timestamp: get_block_timestamp() });
+            self.emit(OrderEvent { market_order: market_order, order_id });
+
         }
 
         // =========================
