@@ -21,7 +21,7 @@ export STARKNET_RPC="https://starknet-goerli.g.alchemy.com/v2/-RHvatMphky_TLyhAR
 export STARKNET_KEYSTORE=<PATH>
 
 # Declare and deploy contracts
-starkli declare /Users/os/Documents/code/biblio/onchain-nft-market/target/dev/marketplace_Market.contract_class.json --account ./account
+starkli declare /Users/os/Documents/code/biblio/onchain-nft-market/target/dev/marketplace_Market.contract_class.json --account ./account --keystore ./keys
 starkli deploy 0x07300eee02cd54df6de743fa74fe1d61f562c4f4a1554aeeb307d0e2141a6b76 $LORDS_ADDRESS 300 $DAO_ADDRESS --account ./account
 ```
 
@@ -46,7 +46,7 @@ export DAO_ADDRESS=0x65ce28a1d99a085a0d5b4d07ceb9b80a9ef0e64a525bf526cff678c619f
 
 ```bash
 # Add whitelist
-starkli invoke 0x0136c83ac9a4938fa5205ac08a52937f5d19e02fe1fe5400d664f47c2b2297bb whitelist_collection $BEASTS_ADDRESS --account ./account
+starkli invoke 0x0136c83ac9a4938fa5205ac08a52937f5d19e02fe1fe5400d664f47c2b2297bb whitelist_collection $GOLDEN_TOKEN_ADDRESS --account ./account --keystore ./keys
 starkli invoke 0x0136c83ac9a4938fa5205ac08a52937f5d19e02fe1fe5400d664f47c2b2297bb whitelist_collection $BEASTS_ADDRESS --account ./account-mainnet
 
 # Mainnet hash
