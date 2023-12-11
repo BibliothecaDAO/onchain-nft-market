@@ -22,7 +22,11 @@ export STARKNET_KEYSTORE=<PATH>
 
 # Declare and deploy contracts
 starkli declare /Users/os/Documents/code/biblio/onchain-nft-market/target/dev/marketplace_Market.contract_class.json --account ./account --keystore ./keys
-starkli deploy 0x07300eee02cd54df6de743fa74fe1d61f562c4f4a1554aeeb307d0e2141a6b76 $LORDS_ADDRESS 300 $DAO_ADDRESS --account ./account
+starkli deploy 0x052a47b54f4358723850764585c9eafdcb8eec2e36874f9394a6643bd79bf982 $LORDS_ADDRESS 500 $DAO_ADDRESS --account ./account --keystore ./keys
+
+# then
+
+export MARKET_ADDRESS=0x07724c0cc6d78237b0c6103eb545c4f8560389145d87e02057c093bc9c275cd0
 ```
 
 ### Configuration for Goerli and Mainnet
@@ -46,9 +50,13 @@ export DAO_ADDRESS=0x65ce28a1d99a085a0d5b4d07ceb9b80a9ef0e64a525bf526cff678c619f
 
 ```bash
 # Add whitelist
-starkli invoke 0x0136c83ac9a4938fa5205ac08a52937f5d19e02fe1fe5400d664f47c2b2297bb whitelist_collection $GOLDEN_TOKEN_ADDRESS --account ./account --keystore ./keys
-starkli invoke 0x0136c83ac9a4938fa5205ac08a52937f5d19e02fe1fe5400d664f47c2b2297bb whitelist_collection $BEASTS_ADDRESS --account ./account-mainnet
+starkli invoke $MARKET_ADDRESS whitelist_collection $GOLDEN_TOKEN_ADDRESS --account ./account --keystore ./keys
 
-# Mainnet hash
-starkli deploy 0x04624b17451699a93ea17a444ee8503a6d9317c1f8eb7fc4d27269d1a46b1cc3 $LORDS_ADDRESS 300 $DAO_ADDRESS --account ./account-mainnet
+starkli invoke $MARKET_ADDRESS whitelist_collection $BEASTS_ADDRESS --account ./account --keystore ./keys
+```
+
+### test 
+
+```bash
+starkli declare /Users/os/Documents/code/biblio/onchain-nft-market/target/dev/marketplace_MyNFT.contract_class.json --account ./account --keystore ./keys
 ```

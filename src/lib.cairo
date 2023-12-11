@@ -30,6 +30,14 @@ mod Market {
     use starknet::{get_caller_address, ContractAddress, get_block_timestamp, get_contract_address};
     use super::IMarket;
 
+    #[derive(Drop, Copy, Serde)]
+    enum OrderState {
+        Created,
+        Edited,
+        Cancelled,
+        Accepted,
+    }
+
     #[event]
     #[derive(Drop, starknet::Event)]
     enum Event {
@@ -40,6 +48,7 @@ mod Market {
     struct OrderEvent {
         market_order: MarketOrder,
         order_id: felt252,
+        state: OrderState,
     }
 
     #[storage]
@@ -125,7 +134,7 @@ mod Market {
             self.order_count.write(count);
 
             // emit event
-            self.emit(OrderEvent { market_order, order_id: count });
+            self.emit(OrderEvent { market_order, order_id: count, state: OrderState::Created });
         }
 
         /// Accepts a market order.
@@ -168,7 +177,7 @@ mod Market {
             self.market_order.write(order_id, market_order);
 
             // emit event
-            self.emit(OrderEvent { market_order, order_id });
+            self.emit(OrderEvent { market_order, order_id, state: OrderState::Accepted  });
         }
 
         /// Cancels a market order.
@@ -190,7 +199,7 @@ mod Market {
             self.market_order.write(order_id, market_order);
 
             // emit event
-            self.emit(OrderEvent { market_order, order_id});
+            self.emit(OrderEvent { market_order, order_id, state: OrderState::Cancelled });
         }
 
         /// Edits an existing market order.
@@ -212,7 +221,7 @@ mod Market {
             self.market_order.write(order_id, market_order);
 
             // emit event
-            self.emit(OrderEvent { market_order: market_order, order_id });
+            self.emit(OrderEvent { market_order, order_id, state: OrderState::Edited  });
 
         }
 
